@@ -35,7 +35,16 @@ pub struct ResponseBuilder {
 
 impl fmt::Display for Response {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        todo!()
+        write!(f, "{} {}\r\n", &self.version, &self.code)?;
+
+        for header in &self.headers {
+            write!(f, "{header}\r\n")?;
+        }
+
+        write!(f, "\r\n")?;
+        write!(f, "{}", &self.body)?;
+
+        Ok(())
     }
 }
 
