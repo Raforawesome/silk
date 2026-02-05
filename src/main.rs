@@ -30,6 +30,16 @@ pub fn connection_dispatch(mut stream: TcpStream) {
         .take_while(|line| !line.is_empty())
         .collect();
 
-    let response = "HTTP/1.1 200 OK\r\n\r\n";
-    stream.write_all(response.as_bytes()).unwrap();
+    let content = include_bytes!("../hello.html");
+
+    let response = ResponseBuilder::new()
+        .version(Version::Http1_1)
+        .code(Code::Ok)
+        .header(Header::ContentLength(content.len()))
+        .extend_body(content)
+        .build()
+        .unwrap()
+        .to_bytes();
+
+    stream.write_all(&response).unwrap();
 }
