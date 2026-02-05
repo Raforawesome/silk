@@ -13,7 +13,9 @@ use silk::{
 };
 
 fn main() {
-    let listener = TcpListener::bind("127.0.0.1:7878").unwrap();
+    let bind_address = "127.0.0.1:7878";
+    let listener = TcpListener::bind(bind_address).unwrap();
+    println!("Listening on {bind_address}");
 
     for stream in listener.incoming() {
         let stream = stream.unwrap();

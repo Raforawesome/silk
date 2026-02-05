@@ -1,3 +1,5 @@
+use bytes::BytesMut;
+
 use crate::ToBytes;
 use std::io::Write;
 
@@ -36,21 +38,19 @@ pub struct ResponseBuilder {
 }
 
 impl ToBytes for Response {
-    fn write_to(&self, buffer: &mut impl Write) -> std::io::Result<()> {
-        self.version.write_to(buffer)?;
-        buffer.write_all(b" ")?;
-        self.code.write_to(buffer)?;
-        buffer.write_all(b"\r\n")?;
+    fn write_to(&self, buffer: &mut BytesMut) {
+        self.version.write_to(buffer);
+        buffer.extend_from_slice(b" ");
+        self.code.write_to(buffer);
+        buffer.extend_from_slice(b"\r\n");
 
         for header in &self.headers {
-            header.write_to(buffer)?;
-            buffer.write_all(b"\r\n")?;
+            header.write_to(buffer);
+            buffer.extend_from_slice(b"\r\n");
         }
 
-        buffer.write_all(b"\r\n")?;
-        buffer.write_all(&self.body)?;
-
-        Ok(())
+        buffer.extend_from_slice(b"\r\n");
+        buffer.extend_from_slice(&self.body);
     }
 }
 
@@ -71,6 +71,17 @@ impl ResponseBuilder {
 
     pub fn body(mut self, body: Vec<u8>) -> Self {
         self.body = Some(body);
+        self
+    }
+
+    pub fn extend_body(mut self, bytes: impl AsRef<[u8]>) -> Self {
+        let bytes = bytes.as_ref();
+
+        match &mut self.body {
+            Some(body) => body.extend_from_slice(bytes),
+            None => self.body = Some(bytes.to_vec()),
+        };
+
         self
     }
 
@@ -99,15 +110,15 @@ impl ResponseBuilder {
 }
 
 impl ToBytes for Code {
-    fn write_to(&self, buffer: &mut impl Write) -> std::io::Result<()> {
+    fn write_to(&self, buffer: &mut BytesMut) {
         match self {
-            Code::Ok => write!(buffer, "200 OK"),
-            Code::NotFound => write!(buffer, "404 Not Found"),
-            Code::InternalServerError => write!(buffer, "500 Internal Server Error"),
-            Code::BadRequest => write!(buffer, "400 Bad Request"),
-            Code::Unauthorized => write!(buffer, "401 Unauthorized"),
-            Code::Forbidden => write!(buffer, "403 Forbidden"),
-            Code::MethodNotAllowed => write!(buffer, "405 Method Not Allowed"),
+            Code::Ok => buffer.extend_from_slice(b"200 OK"),
+            Code::NotFound => buffer.extend_from_slice(b"404 Not Found"),
+            Code::InternalServerError => buffer.extend_from_slice(b"500 Internal Server Error"),
+            Code::BadRequest => buffer.extend_from_slice(b"400 Bad Request"),
+            Code::Unauthorized => buffer.extend_from_slice(b"401 Unauthorized"),
+            Code::Forbidden => buffer.extend_from_slice(b"403 Forbidden"),
+            Code::MethodNotAllowed => buffer.extend_from_slice(b"405 Method Not Allowed"),
         }
     }
 }

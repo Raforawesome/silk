@@ -1,8 +1,9 @@
 pub mod headers;
 pub mod response;
 
+use bytes::BytesMut;
+
 use crate::ToBytes;
-use std::io::Write;
 
 pub enum Version {
     Http1_1,
@@ -15,19 +16,19 @@ pub enum Method {
 }
 
 impl ToBytes for Version {
-    fn write_to(&self, buffer: &mut impl Write) -> std::io::Result<()> {
+    fn write_to(&self, buffer: &mut BytesMut) {
         match self {
-            Version::Http1_1 => write!(buffer, "HTTP/1.1"),
-            Version::Http2_0 => write!(buffer, "HTTP/2.0"),
+            Version::Http1_1 => buffer.extend_from_slice(b"HTTP/1.1"),
+            Version::Http2_0 => buffer.extend_from_slice(b"HTTP/2.0"),
         }
     }
 }
 
 impl ToBytes for Method {
-    fn write_to(&self, buffer: &mut impl Write) -> std::io::Result<()> {
+    fn write_to(&self, buffer: &mut BytesMut) {
         match self {
-            Method::Post => write!(buffer, "POST"),
-            Method::Get => write!(buffer, "GET"),
+            Method::Post => buffer.extend_from_slice(b"POST"),
+            Method::Get => buffer.extend_from_slice(b"GET"),
         }
     }
 }
