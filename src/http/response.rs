@@ -1,4 +1,5 @@
-use std::fmt;
+use crate::ToBytes;
+use std::io::Write;
 
 use crate::http::{self, headers::Header};
 
@@ -12,6 +13,7 @@ pub enum Code {
     MethodNotAllowed,
 }
 
+#[derive(Debug)]
 pub enum ResponseError {
     MissingVersion,
     MissingCode,
@@ -22,7 +24,7 @@ pub struct Response {
     version: http::Version,
     code: Code,
     headers: Vec<Header>,
-    body: String,
+    body: Vec<u8>,
 }
 
 #[derive(Default)]
@@ -30,19 +32,23 @@ pub struct ResponseBuilder {
     version: Option<http::Version>,
     code: Option<Code>,
     headers: Vec<Header>,
-    body: Option<String>,
+    body: Option<Vec<u8>>,
 }
 
-impl fmt::Display for Response {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} {}\r\n", &self.version, &self.code)?;
+impl ToBytes for Response {
+    fn write_to(&self, buffer: &mut impl Write) -> std::io::Result<()> {
+        self.version.write_to(buffer)?;
+        buffer.write_all(b" ")?;
+        self.code.write_to(buffer)?;
+        buffer.write_all(b"\r\n")?;
 
         for header in &self.headers {
-            write!(f, "{header}\r\n")?;
+            header.write_to(buffer)?;
+            buffer.write_all(b"\r\n")?;
         }
 
-        write!(f, "\r\n")?;
-        write!(f, "{}", &self.body)?;
+        buffer.write_all(b"\r\n")?;
+        buffer.write_all(&self.body)?;
 
         Ok(())
     }
@@ -63,7 +69,7 @@ impl ResponseBuilder {
         self
     }
 
-    pub fn body(mut self, body: String) -> Self {
+    pub fn body(mut self, body: Vec<u8>) -> Self {
         self.body = Some(body);
         self
     }
@@ -92,16 +98,16 @@ impl ResponseBuilder {
     }
 }
 
-impl fmt::Display for Code {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl ToBytes for Code {
+    fn write_to(&self, buffer: &mut impl Write) -> std::io::Result<()> {
         match self {
-            Code::Ok => write!(f, "200 OK"),
-            Code::NotFound => write!(f, "404 Not Found"),
-            Code::InternalServerError => write!(f, "500 Internal Server Error"),
-            Code::BadRequest => write!(f, "400 Bad Request"),
-            Code::Unauthorized => write!(f, "401 Unauthorized"),
-            Code::Forbidden => write!(f, "403 Forbidden"),
-            Code::MethodNotAllowed => write!(f, "405 Method Not Allowed"),
+            Code::Ok => write!(buffer, "200 OK"),
+            Code::NotFound => write!(buffer, "404 Not Found"),
+            Code::InternalServerError => write!(buffer, "500 Internal Server Error"),
+            Code::BadRequest => write!(buffer, "400 Bad Request"),
+            Code::Unauthorized => write!(buffer, "401 Unauthorized"),
+            Code::Forbidden => write!(buffer, "403 Forbidden"),
+            Code::MethodNotAllowed => write!(buffer, "405 Method Not Allowed"),
         }
     }
 }

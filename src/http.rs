@@ -1,7 +1,8 @@
 pub mod headers;
 pub mod response;
 
-use std::fmt;
+use crate::ToBytes;
+use std::io::Write;
 
 pub enum Version {
     Http1_1,
@@ -13,20 +14,20 @@ pub enum Method {
     Get,
 }
 
-impl fmt::Display for Version {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl ToBytes for Version {
+    fn write_to(&self, buffer: &mut impl Write) -> std::io::Result<()> {
         match self {
-            Version::Http1_1 => write!(f, "HTTP/1.1"),
-            Version::Http2_0 => write!(f, "HTTP/2.0"),
+            Version::Http1_1 => write!(buffer, "HTTP/1.1"),
+            Version::Http2_0 => write!(buffer, "HTTP/2.0"),
         }
     }
 }
 
-impl fmt::Display for Method {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl ToBytes for Method {
+    fn write_to(&self, buffer: &mut impl Write) -> std::io::Result<()> {
         match self {
-            Method::Post => write!(f, "POST"),
-            Method::Get => write!(f, "GET"),
+            Method::Post => write!(buffer, "POST"),
+            Method::Get => write!(buffer, "GET"),
         }
     }
 }
