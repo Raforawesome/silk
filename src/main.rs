@@ -5,11 +5,7 @@ use std::{
 
 use silk::{
     ToBytes,
-    http::{
-        Version,
-        headers::Header,
-        response::{Code, ResponseBuilder},
-    },
+    http::{Version, code::Code, headers::Header, response::ResponseBuilder},
 };
 
 fn main() {
@@ -31,6 +27,7 @@ pub fn connection_dispatch(mut stream: TcpStream) {
         .map(|result| result.unwrap())
         .take_while(|line| !line.is_empty())
         .collect();
+    println!("HTTP Request:\n{http_request:#?}");
 
     let content = include_bytes!("../hello.html");
 

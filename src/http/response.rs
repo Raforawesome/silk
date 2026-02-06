@@ -1,19 +1,8 @@
+use crate::{
+    ToBytes,
+    http::{self, code::Code, headers::Header},
+};
 use bytes::BytesMut;
-
-use crate::ToBytes;
-use std::io::Write;
-
-use crate::http::{self, headers::Header};
-
-pub enum Code {
-    Ok,
-    NotFound,
-    InternalServerError,
-    BadRequest,
-    Unauthorized,
-    Forbidden,
-    MethodNotAllowed,
-}
 
 #[derive(Debug)]
 pub enum ResponseError {
@@ -106,19 +95,5 @@ impl ResponseBuilder {
             headers: self.headers,
             body,
         })
-    }
-}
-
-impl ToBytes for Code {
-    fn write_to(&self, buffer: &mut BytesMut) {
-        match self {
-            Code::Ok => buffer.extend_from_slice(b"200 OK"),
-            Code::NotFound => buffer.extend_from_slice(b"404 Not Found"),
-            Code::InternalServerError => buffer.extend_from_slice(b"500 Internal Server Error"),
-            Code::BadRequest => buffer.extend_from_slice(b"400 Bad Request"),
-            Code::Unauthorized => buffer.extend_from_slice(b"401 Unauthorized"),
-            Code::Forbidden => buffer.extend_from_slice(b"403 Forbidden"),
-            Code::MethodNotAllowed => buffer.extend_from_slice(b"405 Method Not Allowed"),
-        }
     }
 }

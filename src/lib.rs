@@ -1,5 +1,3 @@
-use std::io::Write;
-
 use bytes::BytesMut;
 
 pub mod http;
