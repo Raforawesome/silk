@@ -1,6 +1,8 @@
 use bytes::BytesMut;
 
 pub mod http;
+#[cfg(test)]
+mod tests;
 
 /// Optional const generic parameter `S` represents initial size of byte buffer
 pub trait ToBytes<const S: usize = 4096> {
