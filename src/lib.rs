@@ -1,5 +1,6 @@
 use bytes::BytesMut;
 
+pub mod connection;
 pub mod http;
 #[cfg(test)]
 mod tests;
