@@ -6,10 +6,12 @@ use bytes::BytesMut;
 
 use crate::ToBytes;
 
+#[derive(Debug, Copy, Clone)]
 pub enum Version {
     Http1_1,
 }
 
+#[derive(Debug, Copy, Clone)]
 pub enum Method {
     Post,
     Get,
