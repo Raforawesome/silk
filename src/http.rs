@@ -4,7 +4,7 @@ pub mod response;
 
 use bytes::BytesMut;
 
-use crate::ToBytes;
+use crate::{ToBytes, http::code::Code};
 
 #[derive(Debug, Copy, Clone)]
 pub enum Version {
@@ -56,6 +56,7 @@ impl ToBytes for Method {
         match self {
             Method::Post => buffer.extend_from_slice(b"POST"),
             Method::Get => buffer.extend_from_slice(b"GET"),
+            Method::Put => buffer.extend_from_slice(b"PUT"),
         }
     }
 }
