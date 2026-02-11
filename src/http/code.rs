@@ -1,6 +1,7 @@
 use crate::ToBytes;
 use bytes::BytesMut;
 
+#[derive(Debug)]
 pub enum Code {
     Ok,
     NotFound,
@@ -9,6 +10,7 @@ pub enum Code {
     Unauthorized,
     Forbidden,
     MethodNotAllowed,
+    HttpVersionNotSupported,
 }
 
 impl ToBytes for Code {
@@ -21,6 +23,9 @@ impl ToBytes for Code {
             Code::Unauthorized => buffer.extend_from_slice(b"401 Unauthorized"),
             Code::Forbidden => buffer.extend_from_slice(b"403 Forbidden"),
             Code::MethodNotAllowed => buffer.extend_from_slice(b"405 Method Not Allowed"),
+            Code::HttpVersionNotSupported => {
+                buffer.extend_from_slice(b"505 HTTP Version Not Supported")
+            }
         }
     }
 }
