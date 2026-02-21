@@ -43,6 +43,7 @@ impl ToBytes for Response {
     }
 }
 
+// basic builder methods
 impl ResponseBuilder {
     pub fn new() -> Self {
         Self::default()
@@ -95,5 +96,13 @@ impl ResponseBuilder {
             headers: self.headers,
             body,
         })
+    }
+}
+
+// composite methods
+impl ResponseBuilder {
+    pub fn with_content(self, content: Vec<u8>) -> Self {
+        self.header(Header::ContentLength(content.len()))
+            .body(content)
     }
 }
