@@ -6,7 +6,7 @@ use std::{
 
 use crate::{
     ToBytes as _,
-    http::{Version, code::Code, headers::Header, request::Request, response::ResponseBuilder},
+    http::{Version, code::Code, request::Request, response::ResponseBuilder},
 };
 
 thread_local! {
@@ -30,19 +30,19 @@ pub fn handle_connection(mut stream: TcpStream, buf: &mut Vec<u8>) {
     dbg!(
         request.method(),
         unsafe { str::from_utf8_unchecked(request.path()) },
-        request.http_version()
+        request.http_version(),
+        unsafe { str::from_utf8_unchecked(request.headers()) },
+        unsafe { str::from_utf8_unchecked(request.body()) },
     );
 
     let content = include_bytes!("../hello.html");
 
     let response = ResponseBuilder::new()
+        .with_content(content.to_vec())
         .version(Version::Http1_1)
         .code(Code::Ok)
-        .header(Header::ContentLength(content.len()))
-        .extend_body(content)
         .build()
-        .unwrap()
-        .to_bytes();
+        .unwrap();
 
-    stream.write_all(&response).unwrap();
+    stream.write_all(&response.to_bytes()).unwrap();
 }

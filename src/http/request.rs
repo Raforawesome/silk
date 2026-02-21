@@ -9,6 +9,7 @@ pub struct Request<'a> {
     method: Method,
     path: &'a [u8],
     http_version: Version,
+    headers: &'a [u8],
     body: &'a [u8],
 }
 
@@ -47,8 +48,7 @@ fn parse_head<'a>(head: &'a [u8]) -> Result<(StatusLine<'a>, &'a [u8]), Code> {
     }
 
     let status_line = &head[..end];
-    let s1 = memchr::memchr(b' ', status_line).ok_or(Code::BadRequest)?;
-    let s2 = s1 + 1 + memchr::memchr(b' ', &status_line[s1 + 1..]).ok_or(Code::BadRequest)?;
+    let header_block = head.get(end + 2..).unwrap_or_default();
 
     let status_line = parse_status_line(status_line)?;
     Ok((status_line, header_block))
@@ -57,12 +57,19 @@ fn parse_head<'a>(head: &'a [u8]) -> Result<(StatusLine<'a>, &'a [u8]), Code> {
 impl<'a> Request<'a> {
     pub fn parse(buffer: &'a [u8]) -> Result<Request<'a>, Code> {
         let (head, body) = guillotine(buffer).ok_or(Code::BadRequest)?;
-        let (method, path, http_version) = parse_status_line(head)?;
+        let (status_line, headers) = parse_head(head)?;
+
+        let StatusLine {
+            method,
+            path,
+            http_version,
+        } = status_line;
 
         let request = Request {
             method,
             path,
             http_version,
+            headers,
             body,
         };
         Ok(request)
@@ -80,6 +87,10 @@ impl<'a> Request<'a> {
 
     pub fn http_version(&self) -> Version {
         self.http_version
+    }
+
+    pub fn headers(&self) -> &[u8] {
+        self.headers
     }
 
     pub fn body(&self) -> &[u8] {
