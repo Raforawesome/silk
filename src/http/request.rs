@@ -1,4 +1,4 @@
-use memchr::memmem::find as memmem;
+use memchr::{memchr, memmem::find as memmem};
 
 use crate::http::{Method, Version, code::Code};
 
@@ -19,8 +19,29 @@ fn guillotine(request: &[u8]) -> Option<(&[u8], &[u8])> {
     boundary.map(|i| (&request[..i], &request[i + 4..]))
 }
 
-fn parse_status_line(head: &[u8]) -> Result<(Method, &[u8], Version), Code> {
-    let mut end = memchr::memchr(b'\n', head).ok_or(Code::BadRequest)?;
+/// Holds information about the status line (first line) of an HTTP request
+struct StatusLine<'a> {
+    method: Method,
+    path: &'a [u8],
+    http_version: Version,
+}
+
+fn parse_status_line<'a>(status_line: &'a [u8]) -> Result<StatusLine<'a>, Code> {
+    let s1 = memchr(b' ', status_line).ok_or(Code::BadRequest)?;
+    let s2 = s1 + 1 + memchr(b' ', &status_line[s1 + 1..]).ok_or(Code::BadRequest)?;
+
+    let method = Method::try_from(&status_line[0..s1])?;
+    let path = &status_line[s1 + 1..s2];
+    let http_version = Version::try_from(&status_line[s2 + 1..])?;
+    Ok(StatusLine {
+        method,
+        path,
+        http_version,
+    })
+}
+
+fn parse_head<'a>(head: &'a [u8]) -> Result<(StatusLine<'a>, &'a [u8]), Code> {
+    let mut end = memchr(b'\n', head).ok_or(Code::BadRequest)?;
     if end > 0 && head[end - 1] == b'\r' {
         end -= 1;
     }
@@ -29,9 +50,8 @@ fn parse_status_line(head: &[u8]) -> Result<(Method, &[u8], Version), Code> {
     let s1 = memchr::memchr(b' ', status_line).ok_or(Code::BadRequest)?;
     let s2 = s1 + 1 + memchr::memchr(b' ', &status_line[s1 + 1..]).ok_or(Code::BadRequest)?;
 
-    let method = Method::try_from(&status_line[0..s1])?;
-    let version = Version::try_from(&status_line[s2 + 1..])?;
-    Ok((method, &status_line[s1 + 1..s2], version))
+    let status_line = parse_status_line(status_line)?;
+    Ok((status_line, header_block))
 }
 
 impl<'a> Request<'a> {
