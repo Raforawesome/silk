@@ -27,6 +27,7 @@ pub fn handle_connection(mut stream: TcpStream, buf: &mut [u8]) {
         return;
     }
 
+    let buf = &mut buf[..bytes_read]; // trim empty bytes at end of buffer
     let request = Request::parse(buf).unwrap();
     dbg!(
         request.method(),
