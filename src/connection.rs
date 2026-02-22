@@ -10,21 +10,22 @@ use crate::{
 };
 
 thread_local! {
-    static REQ_BUFFER: RefCell<Vec<u8>> = RefCell::new(Vec::with_capacity(8192));
+    static REQ_BUFFER: RefCell<Vec<u8>> = RefCell::new(vec![0; 8192]);
 }
 
 pub fn connection_dispatch(stream: TcpStream) {
     REQ_BUFFER.with_borrow_mut(|buf| handle_connection(stream, buf));
 }
 
-pub fn handle_connection(mut stream: TcpStream, buf: &mut Vec<u8>) {
-    buf.resize(8192, 0);
-
-    match stream.read(buf) {
-        Ok(0) => eprintln!("socket closed"),
-        Ok(_) => {}
-        Err(e) => eprintln!("error reading from socket: {}", e),
+pub fn handle_connection(mut stream: TcpStream, buf: &mut [u8]) {
+    let Ok(bytes_read) = stream.read(buf) else {
+        eprintln!("error reading from socket");
+        return;
     };
+    if bytes_read == 0 {
+        eprintln!("socket closed");
+        return;
+    }
 
     let request = Request::parse(buf).unwrap();
     dbg!(
