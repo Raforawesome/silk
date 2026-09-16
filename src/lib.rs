@@ -1,9 +1,11 @@
-use bytes::BytesMut;
-
+#![feature(sync_nonpoison, nonpoison_mutex, nonpoison_condvar)]
 pub mod connection;
 pub mod http;
+pub mod router;
 #[cfg(test)]
 mod tests;
+
+use bytes::BytesMut;
 
 /// Optional const generic parameter `S` represents initial size of byte buffer
 pub trait ToBytes<const S: usize = 4096> {

@@ -34,6 +34,7 @@ fn parse_status_line<'a>(status_line: &'a [u8]) -> Result<StatusLine<'a>, Code> 
     let method = Method::try_from(&status_line[0..s1])?;
     let path = &status_line[s1 + 1..s2];
     let http_version = Version::try_from(&status_line[s2 + 1..])?;
+
     Ok(StatusLine {
         method,
         path,
