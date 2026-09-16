@@ -1,30 +1,30 @@
-use std::{
-    cell::RefCell,
-    io::{Read as _, Write as _},
-    net::TcpStream,
-};
+pub mod thread_pool;
 
-use crate::{
-    ToBytes as _,
-    http::{Version, code::Code, request::Request, response::ResponseBuilder},
+use std::{cell::RefCell, io::Read as _, net::TcpStream};
+
+use crate::http::{
+    Version,
+    code::Code,
+    request::Request,
+    response::{Response, ResponseBuilder},
 };
 
 thread_local! {
     static REQ_BUFFER: RefCell<Vec<u8>> = RefCell::new(vec![0; 8192]);
 }
 
-pub fn connection_dispatch(stream: TcpStream) {
-    REQ_BUFFER.with_borrow_mut(|buf| handle_connection(stream, buf));
+pub fn connection_dispatch(stream: &mut TcpStream) -> Result<Response, ()> {
+    REQ_BUFFER.with_borrow_mut(|buf| handle_connection(stream, buf))
 }
 
-pub fn handle_connection(mut stream: TcpStream, buf: &mut [u8]) {
+fn handle_connection(stream: &mut TcpStream, buf: &mut [u8]) -> Result<Response, ()> {
     let Ok(bytes_read) = stream.read(buf) else {
         eprintln!("error reading from socket");
-        return;
+        return Err(());
     };
     if bytes_read == 0 {
         eprintln!("socket closed");
-        return;
+        return Err(());
     }
 
     let buf = &mut buf[..bytes_read]; // trim empty bytes at end of buffer
@@ -33,8 +33,6 @@ pub fn handle_connection(mut stream: TcpStream, buf: &mut [u8]) {
         request.method(),
         unsafe { str::from_utf8_unchecked(request.path()) },
         request.http_version(),
-        unsafe { str::from_utf8_unchecked(request.headers()) },
-        unsafe { str::from_utf8_unchecked(request.body()) },
     );
 
     let content = include_bytes!("../hello.html");
@@ -46,5 +44,5 @@ pub fn handle_connection(mut stream: TcpStream, buf: &mut [u8]) {
         .build()
         .unwrap();
 
-    stream.write_all(&response.to_bytes()).unwrap();
+    Ok(response)
 }
