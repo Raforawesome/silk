@@ -4,14 +4,19 @@ use crossbeam_channel::{Receiver, Sender};
 
 use crate::{ToBytes as _, http::response::Response};
 
+use super::ConnectionError;
+
 pub struct ThreadPool {
     sender: Sender<TcpStream>,
     // receiver: Receiver<TcpStream>,
-    conn_handler: fn(&mut TcpStream) -> Result<Response, ()>,
+    conn_handler: fn(&mut TcpStream) -> Result<Response, ConnectionError>,
 }
 
 impl ThreadPool {
-    pub fn new(threads: usize, conn_handler: fn(&mut TcpStream) -> Result<Response, ()>) -> Self {
+    pub fn new(
+        threads: usize,
+        conn_handler: fn(&mut TcpStream) -> Result<Response, ConnectionError>,
+    ) -> Self {
         let (sender, receiver) = crossbeam_channel::bounded(threads);
 
         for thread_id in 0..threads {
@@ -20,13 +25,23 @@ impl ThreadPool {
             std::thread::spawn(move || {
                 loop {
                     while let Ok(mut stream) = receiver.recv() {
-                        println!("handling connection from thread {thread_id}");
                         let response = conn_handler(&mut stream);
 
                         match response {
-                            Ok(response) => stream.write_all(&response.to_bytes()).unwrap(),
-                            Err(()) => stream.shutdown(std::net::Shutdown::Both).unwrap(),
+                            Ok(response) => {
+                                if let Err(error) = stream.write_all(&response.to_bytes()) {
+                                    eprintln!("error writing to socket: {error}");
+                                }
+                            }
+                            Err(ConnectionError::PeerClosed) => (),
+                            Err(ConnectionError::Read(error)) => {
+                                eprintln!("error reading from socket: {error}");
+                            }
+                            Err(ConnectionError::ResponseBuild(error)) => {
+                                eprintln!("error building response: {error:?}");
+                            }
                         }
+                        // Dropping the stream closes it, including after a failed write.
                     }
 
                     eprintln!("thread with id {thread_id} quit due to sender disconnection");
