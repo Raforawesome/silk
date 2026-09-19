@@ -4,6 +4,9 @@ use bytes::BytesMut;
 #[derive(Debug)]
 pub enum Code {
     Ok,
+    NotImplemented,
+    ContentTooLarge,
+    RequestHeaderFieldsTooLarge,
     NotFound,
     InternalServerError,
     BadRequest,
@@ -16,6 +19,11 @@ pub enum Code {
 impl ToBytes for Code {
     fn write_to(&self, buffer: &mut BytesMut) {
         match self {
+            Code::NotImplemented => buffer.extend_from_slice(b"501 Not Implemented"),
+            Code::ContentTooLarge => buffer.extend_from_slice(b"413 Content Too Large"),
+            Code::RequestHeaderFieldsTooLarge => {
+                buffer.extend_from_slice(b"431 Request Header Fields Too Large")
+            }
             Code::Ok => buffer.extend_from_slice(b"200 OK"),
             Code::NotFound => buffer.extend_from_slice(b"404 Not Found"),
             Code::InternalServerError => buffer.extend_from_slice(b"500 Internal Server Error"),
