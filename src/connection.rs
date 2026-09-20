@@ -6,7 +6,7 @@ use crate::http::{
     Version,
     code::Code,
     headers::Header,
-    request::Request,
+    request::{ParseError, ParseStatus, Request},
     response::{Response, ResponseBuilder, ResponseError},
 };
 
@@ -32,8 +32,23 @@ fn handle_connection(stream: &mut TcpStream, buf: &mut [u8]) -> Result<Response,
     }
 
     let buf = &buf[..bytes_read]; // trim empty bytes at end of buffer
-    if let Err(code) = Request::parse(buf) {
-        return error_response(code);
+    match Request::parse(buf) {
+        Ok(ParseStatus::Complete { .. }) => (),
+        // task B replaces this one-read rejection with incremental receive
+        Ok(ParseStatus::Incomplete) => return error_response(Code::BadRequest),
+        Err(error) => {
+            return error_response(match error {
+                ParseError::UnsupportedMethod | ParseError::UnsupportedTransferEncoding => {
+                    Code::NotImplemented
+                }
+                ParseError::UnsupportedVersion => Code::HttpVersionNotSupported,
+                ParseError::HeadTooLarge | ParseError::TooManyHeaders => {
+                    Code::RequestHeaderFieldsTooLarge
+                }
+                ParseError::RequestTooLarge => Code::ContentTooLarge,
+                _ => Code::BadRequest,
+            });
+        }
     }
 
     let content = include_bytes!("../hello.html");

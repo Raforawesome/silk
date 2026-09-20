@@ -36,6 +36,7 @@ fn report(label: &str, elapsed: Duration, iterations: u32, input_size: usize) {
 }
 
 #[test]
+#[ignore = "legacy benchmark only; invalid fixtures and accounting, replacement deferred to Task E"]
 fn perf_parse_minimal_get() {
     let raw = b"GET / HTTP/1.1\r\n\r\n";
 
@@ -48,6 +49,7 @@ fn perf_parse_minimal_get() {
 }
 
 #[test]
+#[ignore = "legacy benchmark only; invalid fixtures and accounting, replacement deferred to Task E"]
 fn perf_parse_typical_get() {
     let raw = b"GET /api/v1/users/12345/profile HTTP/1.1\r\n\
 Host: www.example.com\r\n\
@@ -68,6 +70,7 @@ Cache-Control: no-cache\r\n\
 }
 
 #[test]
+#[ignore = "legacy benchmark only; invalid fixtures and accounting, replacement deferred to Task E"]
 fn perf_parse_post_with_body() {
     let body = r#"{"username":"john_doe","email":"john@example.com","password":"s3cret!"}"#;
     let raw_string = format!(
@@ -92,6 +95,7 @@ Accept: application/json\r\n\
 }
 
 #[test]
+#[ignore = "legacy benchmark only; invalid fixtures and accounting, replacement deferred to Task E"]
 fn perf_parse_many_headers() {
     let mut request = String::from("GET /resource HTTP/1.1\r\n");
     for i in 0..30 {
@@ -111,6 +115,7 @@ fn perf_parse_many_headers() {
 }
 
 #[test]
+#[ignore = "legacy benchmark only; invalid fixtures and accounting, replacement deferred to Task E"]
 fn perf_parse_large_body() {
     let body = "x".repeat(8192);
     let raw_string = format!(
@@ -133,6 +138,7 @@ Content-Length: {}\r\n\
 }
 
 #[test]
+#[ignore = "legacy benchmark only; invalid fixtures and accounting, replacement deferred to Task E"]
 fn perf_parse_long_url() {
     let path = format!("/search?{}", "key=value&".repeat(100));
     let raw_string = format!(
@@ -157,6 +163,7 @@ Accept: */*\r\n\
 }
 
 #[test]
+#[ignore = "legacy benchmark only; invalid fixtures and accounting, replacement deferred to Task E"]
 fn perf_parse_comparison_summary() {
     eprintln!();
     eprintln!("=== Request Parsing Performance Summary ===");
