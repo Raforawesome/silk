@@ -1,21 +1,19 @@
-use std::{io::Write as _, net::TcpStream};
+use std::net::TcpStream;
 
 use crossbeam_channel::{Receiver, Sender};
 
-use crate::{ToBytes as _, http::response::Response};
-
-use super::ConnectionError;
+use super::{ConnectionContext, ConnectionError};
 
 pub struct ThreadPool {
     sender: Sender<TcpStream>,
     // receiver: Receiver<TcpStream>,
-    conn_handler: fn(&mut TcpStream) -> Result<Response, ConnectionError>,
+    conn_handler: fn(&mut TcpStream, &mut ConnectionContext) -> Result<(), ConnectionError>,
 }
 
 impl ThreadPool {
     pub fn new(
         threads: usize,
-        conn_handler: fn(&mut TcpStream) -> Result<Response, ConnectionError>,
+        conn_handler: fn(&mut TcpStream, &mut ConnectionContext) -> Result<(), ConnectionError>,
     ) -> Self {
         let (sender, receiver) = crossbeam_channel::bounded(threads);
 
@@ -23,22 +21,14 @@ impl ThreadPool {
             let receiver = receiver.clone(); // create a new handle to move into the thread
 
             std::thread::spawn(move || {
+                let mut context = ConnectionContext::default();
                 loop {
                     while let Ok(mut stream) = receiver.recv() {
-                        let response = conn_handler(&mut stream);
-
-                        match response {
-                            Ok(response) => {
-                                if let Err(error) = stream.write_all(&response.to_bytes()) {
-                                    eprintln!("error writing to socket: {error}");
-                                }
-                            }
-                            Err(ConnectionError::PeerClosed) => (),
-                            Err(ConnectionError::Read(error)) => {
-                                eprintln!("error reading from socket: {error}");
-                            }
-                            Err(ConnectionError::ResponseBuild(error)) => {
-                                eprintln!("error building response: {error:?}");
+                        if let Err(error) = conn_handler(&mut stream, &mut context) {
+                            match error {
+                                ConnectionError::PeerClosed
+                                | ConnectionError::IncompleteRequest => (),
+                                error => eprintln!("connection failed: {error:?}"),
                             }
                         }
                         // Dropping the stream closes it, including after a failed write.

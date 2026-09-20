@@ -17,3 +17,6 @@ pub trait ToBytes<const S: usize = 4096> {
         buffer
     }
 }
+
+#[cfg(test)]
+mod test_support;

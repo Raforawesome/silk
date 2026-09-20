@@ -227,3 +227,21 @@ fn exact_limits_and_oversized_partial_heads() {
         ParseError::RequestTooLarge
     );
 }
+
+#[test]
+fn incremental_parser_retains_offsets_across_every_byte() {
+    let raw = b"POST /echo?q=x HTTP/1.1\r\nHost: a\r\nContent-Length: 3\r\n\r\nabc";
+    let mut parser = RequestParser::default();
+    for end in 0..raw.len() {
+        assert!(
+            matches!(parser.parse(&raw[..end]), Ok(ParseStatus::Incomplete)),
+            "end {end}"
+        );
+    }
+    let ParseStatus::Complete { request, consumed } = parser.parse(raw).unwrap() else {
+        panic!()
+    };
+    assert_eq!(consumed, raw.len());
+    assert_eq!(request.path(), b"/echo?q=x");
+    assert_eq!(request.body(), b"abc");
+}

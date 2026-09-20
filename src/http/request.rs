@@ -8,7 +8,7 @@ use crate::http::{
 // Head bytes include CRLFCRLF; request bytes count only the first message.
 const MAX_HEAD_BYTES: usize = 8 * 1024;
 const MAX_HEADER_FIELDS: usize = 64;
-const MAX_REQUEST_BYTES: usize = 64 * 1024;
+pub(crate) const MAX_REQUEST_BYTES: usize = 64 * 1024;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ParseError {
@@ -55,72 +55,12 @@ impl<'a> Request<'a> {
         max_header_fields: usize,
         max_request_bytes: usize,
     ) -> Result<ParseStatus<'a>, ParseError> {
-        let search_limit = max_head_bytes.min(max_request_bytes);
-        let head_end = match find(&buffer[..buffer.len().min(search_limit)], b"\r\n\r\n") {
-            Some(end) => end + 4,
-            None => {
-                validate_crlf(&buffer[..buffer.len().min(search_limit)], true)?;
-                if buffer.len() >= search_limit {
-                    return Err(if max_head_bytes <= max_request_bytes {
-                        ParseError::HeadTooLarge
-                    } else {
-                        ParseError::RequestTooLarge
-                    });
-                }
-                return Ok(ParseStatus::Incomplete);
-            }
-        };
-        let head = &buffer[..head_end - 2];
-        validate_crlf(head, false)?;
-        let line_end = find(head, b"\r\n").ok_or(ParseError::BadRequest)?;
-        let (method, path) = parse_request_line(&head[..line_end])?;
-        // Includes each field's CRLF; the empty block is valid syntax.
-        let headers = &head[line_end + 2..];
-        validate_headers(headers, max_header_fields)?;
-        let mut host = None;
-        let mut content_length = None;
-        let mut transfer_encoding = false;
-        for field in RequestHeaders::new(headers) {
-            if field.name().eq_ignore_ascii_case(b"host") {
-                if host.replace(field.value()).is_some() {
-                    return Err(ParseError::InvalidHost);
-                }
-            } else if field.name().eq_ignore_ascii_case(b"content-length") {
-                if content_length.is_some() {
-                    return Err(ParseError::DuplicateContentLength);
-                }
-                content_length = Some(parse_length(field.value())?);
-            } else if field.name().eq_ignore_ascii_case(b"transfer-encoding") {
-                transfer_encoding = true;
-            }
-        }
-        if transfer_encoding {
-            return Err(if content_length.is_some() {
-                ParseError::ConflictingFraming
-            } else {
-                ParseError::UnsupportedTransferEncoding
-            });
-        }
-        if !host.is_some_and(valid_host) {
-            return Err(ParseError::InvalidHost);
-        }
-        let consumed = head_end
-            .checked_add(content_length.unwrap_or(0))
-            .filter(|&size| size <= max_request_bytes)
-            .ok_or(ParseError::RequestTooLarge)?;
-        if buffer.len() < consumed {
-            return Ok(ParseStatus::Incomplete);
-        }
-        Ok(ParseStatus::Complete {
-            request: Self {
-                method,
-                path,
-                http_version: Version::Http1_1,
-                headers,
-                body: &buffer[head_end..consumed],
-            },
-            consumed,
-        })
+        RequestParser::default().parse_with_limits(
+            buffer,
+            max_head_bytes,
+            max_header_fields,
+            max_request_bytes,
+        )
     }
 
     pub fn method(&self) -> Method {
@@ -148,6 +88,137 @@ impl<'a> Request<'a> {
     pub fn body(&self) -> &[u8] {
         self.body
     }
+}
+
+/// Append-only receive progress. Reset before reusing the buffer for another connection.
+#[derive(Default)]
+pub(crate) struct RequestParser {
+    searched: usize,
+    head: Option<RequestHead>,
+}
+
+struct RequestHead {
+    method: Method,
+    target: std::ops::Range<usize>,
+    headers: std::ops::Range<usize>,
+    body_start: usize,
+    consumed: usize,
+}
+
+impl RequestParser {
+    pub(crate) fn parse<'a>(&mut self, buffer: &'a [u8]) -> Result<ParseStatus<'a>, ParseError> {
+        self.parse_with_limits(buffer, MAX_HEAD_BYTES, MAX_HEADER_FIELDS, MAX_REQUEST_BYTES)
+    }
+
+    fn parse_with_limits<'a>(
+        &mut self,
+        buffer: &'a [u8],
+        max_head_bytes: usize,
+        max_header_fields: usize,
+        max_request_bytes: usize,
+    ) -> Result<ParseStatus<'a>, ParseError> {
+        if self.head.is_none() {
+            let search_limit = max_head_bytes.min(max_request_bytes);
+            let end = buffer.len().min(search_limit);
+            let start = self.searched.saturating_sub(3);
+            match find(&buffer[start..end], b"\r\n\r\n") {
+                Some(offset) => {
+                    self.head = Some(parse_head(
+                        buffer,
+                        start + offset + 4,
+                        max_header_fields,
+                        max_request_bytes,
+                    )?);
+                }
+                None => {
+                    // One-byte overlap validates CRLF split across reads without rescanning the head.
+                    let checked = if self.searched > 0 && buffer[self.searched - 1] == b'\r' {
+                        self.searched - 1
+                    } else {
+                        self.searched
+                    };
+                    validate_crlf(&buffer[checked..end], true)?;
+                    self.searched = end;
+                    if end >= search_limit {
+                        return Err(if max_head_bytes <= max_request_bytes {
+                            ParseError::HeadTooLarge
+                        } else {
+                            ParseError::RequestTooLarge
+                        });
+                    }
+                    return Ok(ParseStatus::Incomplete);
+                }
+            }
+        }
+        let head = self.head.as_ref().expect("head was validated");
+        if buffer.len() < head.consumed {
+            return Ok(ParseStatus::Incomplete);
+        }
+        Ok(ParseStatus::Complete {
+            request: Request {
+                method: head.method,
+                path: &buffer[head.target.clone()],
+                http_version: Version::Http1_1,
+                headers: &buffer[head.headers.clone()],
+                body: &buffer[head.body_start..head.consumed],
+            },
+            consumed: head.consumed,
+        })
+    }
+}
+
+fn parse_head(
+    buffer: &[u8],
+    head_end: usize,
+    max_header_fields: usize,
+    max_request_bytes: usize,
+) -> Result<RequestHead, ParseError> {
+    let head = &buffer[..head_end - 2];
+    validate_crlf(head, false)?;
+    let line_end = find(head, b"\r\n").ok_or(ParseError::BadRequest)?;
+    let (method, path) = parse_request_line(&head[..line_end])?;
+    // Includes each field's CRLF; the empty block is valid syntax.
+    let headers = &head[line_end + 2..];
+    validate_headers(headers, max_header_fields)?;
+    let mut host = None;
+    let mut content_length = None;
+    let mut transfer_encoding = false;
+    for field in RequestHeaders::new(headers) {
+        if field.name().eq_ignore_ascii_case(b"host") {
+            if host.replace(field.value()).is_some() {
+                return Err(ParseError::InvalidHost);
+            }
+        } else if field.name().eq_ignore_ascii_case(b"content-length") {
+            if content_length.is_some() {
+                return Err(ParseError::DuplicateContentLength);
+            }
+            content_length = Some(parse_length(field.value())?);
+        } else if field.name().eq_ignore_ascii_case(b"transfer-encoding") {
+            transfer_encoding = true;
+        }
+    }
+    if transfer_encoding {
+        return Err(if content_length.is_some() {
+            ParseError::ConflictingFraming
+        } else {
+            ParseError::UnsupportedTransferEncoding
+        });
+    }
+    if !host.is_some_and(valid_host) {
+        return Err(ParseError::InvalidHost);
+    }
+    let consumed = head_end
+        .checked_add(content_length.unwrap_or(0))
+        .filter(|&size| size <= max_request_bytes)
+        .ok_or(ParseError::RequestTooLarge)?;
+    let target_start = memchr(b' ', head).ok_or(ParseError::BadRequest)? + 1;
+    Ok(RequestHead {
+        method,
+        target: target_start..target_start + path.len(),
+        headers: line_end + 2..head_end - 2,
+        body_start: head_end,
+        consumed,
+    })
 }
 
 fn validate_crlf(bytes: &[u8], partial: bool) -> Result<(), ParseError> {
