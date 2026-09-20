@@ -8,7 +8,7 @@ fn main() {
     let listener = TcpListener::bind(bind_address).unwrap();
 
     let thread_count = num_cpus::get();
-    let thread_pool = ThreadPool::new(thread_count, connection_dispatch);
+    let mut thread_pool = ThreadPool::new(thread_count, thread_count * 2, connection_dispatch);
 
     println!("starting thread pool with size {thread_count}");
     println!("Listening on {bind_address}");
@@ -16,6 +16,9 @@ fn main() {
     for stream in listener.incoming() {
         let stream = stream.unwrap();
 
-        thread_pool.submit_task(stream);
+        let _ = thread_pool.submit_task(stream);
+    }
+    if let Err(error) = thread_pool.shutdown() {
+        eprintln!("shutdown failed: {error}");
     }
 }
