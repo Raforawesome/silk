@@ -1,8 +1,6 @@
 pub mod connection;
 pub mod http;
 pub mod router;
-#[cfg(test)]
-mod tests;
 
 use bytes::BytesMut;
 

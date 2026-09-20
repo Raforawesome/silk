@@ -9,3 +9,7 @@ crossbeam-channel = "0.5.15"
 itoa = "1.0.17"
 memchr = "2.8.0"
 num_cpus = "1.17.0"
+
+[[bench]]
+name = "parser"
+harness = false
