@@ -1,0 +1,51 @@
+Silk parser measurements (single-threaded, release bench profile)
+commit: 4233c3764f882fe55168139c8228658a9190a19c
+dirty_status: 
+compiler: rustc 1.94.1 (e408947bf 2026-03-25)
+binary: rustc
+commit-hash: e408947bfd200af42db322daf0fadfe7e26d3bd1
+commit-date: 2026-03-25
+host: aarch64-apple-darwin
+release: 1.94.1
+LLVM version: 21.1.8
+OS: ProductName:		macOS
+ProductVersion:		26.5.1
+BuildVersion:		25F80
+CPU: Apple M2
+RUSTFLAGS: ""
+command: cargo +stable bench --bench parser
+warmup=50000, iterations_per_sample=200000, samples=7
+GB/s uses logical head bytes once, excluding body; not memory traffic or network throughput.
+
+fixture=short, total_bytes=35, head_bytes=35, body_bytes=0
+full_parser: median_ns=137.15, range_ns=136.66..143.22, operations_per_second=7291375, logical_GB_per_second=0.2552
+head_validation_only: median_ns=95.42, range_ns=94.89..95.70, operations_per_second=10480350, logical_GB_per_second=0.3668
+delimiter_scalar: median_ns=10.44, range_ns=10.39..18.47, operations_per_second=95756778, logical_GB_per_second=3.3515
+delimiter_memchr: median_ns=25.50, range_ns=24.48..27.53, operations_per_second=39215040, logical_GB_per_second=1.3725
+
+fixture=typical, total_bytes=145, head_bytes=145, body_bytes=0
+full_parser: median_ns=378.03, range_ns=372.33..384.06, operations_per_second=2645280, logical_GB_per_second=0.3836
+head_validation_only: median_ns=357.38, range_ns=356.15..357.69, operations_per_second=2798171, logical_GB_per_second=0.4057
+delimiter_scalar: median_ns=56.09, range_ns=55.95..56.54, operations_per_second=17827563, logical_GB_per_second=2.5850
+delimiter_memchr: median_ns=19.65, range_ns=19.48..20.01, operations_per_second=50878714, logical_GB_per_second=7.3774
+
+fixture=many_headers, total_bytes=1177, head_bytes=1177, body_bytes=0
+full_parser: median_ns=2616.74, range_ns=2613.37..2623.12, operations_per_second=382155, logical_GB_per_second=0.4498
+head_validation_only: median_ns=2592.91, range_ns=2545.37..2755.80, operations_per_second=385668, logical_GB_per_second=0.4539
+delimiter_scalar: median_ns=384.73, range_ns=375.21..388.68, operations_per_second=2599194, logical_GB_per_second=3.0593
+delimiter_memchr: median_ns=77.78, range_ns=77.45..77.94, operations_per_second=12855984, logical_GB_per_second=15.1315
+
+fixture=body_8192, total_bytes=8254, head_bytes=62, body_bytes=8192
+full_parser: median_ns=198.21, range_ns=197.51..198.57, operations_per_second=5045218, logical_GB_per_second=0.3128
+head_validation_only: median_ns=180.28, range_ns=179.88..180.49, operations_per_second=5546876, logical_GB_per_second=0.3439
+delimiter_scalar: median_ns=18.75, range_ns=18.58..18.88, operations_per_second=53336306, logical_GB_per_second=3.3069
+delimiter_memchr: median_ns=60.56, range_ns=60.33..60.91, operations_per_second=16512322, logical_GB_per_second=1.0238
+
+allocator_sanity (alloc, zeroed, realloc): (1, 1, 1)
+allocations short: (0, 0, 0) across 200000 parses
+allocations typical: (0, 0, 0) across 200000 parses
+allocations many_headers: (0, 0, 0) across 200000 parses
+allocations body_8192: (0, 0, 0) across 200000 parses
+allocations incomplete_body: (0, 0, 0) across 200000 parses
+allocations invalid_duplicate_length: (0, 0, 0) across 200000 parses
+allocations incomplete_head: (0, 0, 0) across 200000 parses

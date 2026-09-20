@@ -21,7 +21,9 @@ stage and pushing to Raforawesome/silk on master. That instruction supersedes th
 per-task selection/review gates and no-commit prompt below for this execution.
 A uses three constants and a private numeric-argument helper instead of a public
 ParseLimits configuration type, per the owner's September 19 preference.
-A–D are implemented and verified; E evidence and final handoff are in progress.
+A–E are implemented and verified. README.md, DESIGN.md, BENCHMARKS.md, and the
+week-A–E feature notes record the completed result. Owner rehearsal remains a
+human responsibility; optional borrowed responses remain deferred.
 Feature notes record historical checks at each stage, not the final API contract.
 
 ## Target
