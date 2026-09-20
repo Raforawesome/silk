@@ -1,4 +1,3 @@
-#![feature(sync_nonpoison, nonpoison_mutex, nonpoison_condvar)]
 pub mod connection;
 pub mod http;
 pub mod router;

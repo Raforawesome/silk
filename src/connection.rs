@@ -63,8 +63,8 @@ fn handle_connection(
     let deadline = Instant::now() + receive_timeout;
     let response = loop {
         match context.parser.parse(&context.buffer[..context.occupied]) {
-            Ok(ParseStatus::Complete { .. }) => {
-                break response(Code::Ok, include_bytes!("../hello.html").to_vec())?;
+            Ok(ParseStatus::Complete { request, .. }) => {
+                break crate::router::route(&request).map_err(ConnectionError::ResponseBuild)?;
             }
             Err(error) => break error_response(error)?,
             Ok(ParseStatus::Incomplete) => (),

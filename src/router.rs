@@ -1,88 +1,38 @@
-use std::collections::HashMap;
+use crate::http::{
+    Method, Version,
+    code::Code,
+    headers::Header,
+    request::Request,
+    response::{Response, ResponseBuilder, ResponseError},
+};
 
-use crate::http::request::Request;
-
-pub type Handler<'a> = dyn Fn(Request) + 'a;
-
-pub enum RouteError {
-    MalformedPath,
-}
-
-pub trait Router<'a> {
-    fn add_route<R, F>(route: R, handler: F)
-    where
-        R: AsRef<[u8]>,
-        F: Fn(Request) + 'a;
-
-    fn get_route<R, F>(route: R) -> F
-    where
-        R: AsRef<[u8]>,
-        F: Fn(Request) + 'a;
-}
-
-pub struct HashRouter<'a> {
-    routes: HashMap<&'a [u8], Box<Handler<'a>>>,
-}
-
-impl<'a> HashRouter<'a> {
-    pub fn push(&mut self, path: &'a [u8], handler: Box<Handler<'a>>) -> Option<Box<Handler<'a>>> {
-        self.routes.insert(path, handler)
+/// Exact routes use the path before '?' while Request preserves the full target.
+pub fn route(request: &Request<'_>) -> Result<Response, ResponseError> {
+    let target = request.path();
+    let path = &target[..memchr::memchr(b'?', target).unwrap_or(target.len())];
+    let (code, body, allow) = match (request.method(), path) {
+        (Method::Get, b"/") => (Code::Ok, include_bytes!("../hello.html").as_slice(), None),
+        (Method::Get, b"/health") => (Code::Ok, b"ok\n".as_slice(), None),
+        (Method::Post, b"/echo") => (Code::Ok, request.body(), None),
+        (_, b"/" | b"/health") => (
+            Code::MethodNotAllowed,
+            b"Method not allowed\n".as_slice(),
+            Some("GET"),
+        ),
+        (_, b"/echo") => (
+            Code::MethodNotAllowed,
+            b"Method not allowed\n".as_slice(),
+            Some("POST"),
+        ),
+        _ => (Code::NotFound, b"Not found\n".as_slice(), None),
+    };
+    let mut builder = ResponseBuilder::new()
+        .version(Version::Http1_1)
+        .code(code)
+        .with_content(body.to_vec())
+        .header(Header::Custom("Connection".into(), "close".into()));
+    if let Some(methods) = allow {
+        builder = builder.header(Header::Custom("Allow".into(), methods.into()));
     }
-}
-
-impl<'a> Default for HashRouter<'a> {
-    fn default() -> Self {
-        let routes = HashMap::new();
-        HashRouter { routes }
-    }
-}
-
-impl<'a> Router<'a> for HashRouter<'a> {
-    fn add_route<R, F>(route: R, handler: F)
-    where
-        R: AsRef<[u8]>,
-        F: Fn(Request) + 'a,
-    {
-        todo!()
-    }
-
-    fn get_route<R, F>(route: R) -> F
-    where
-        R: AsRef<[u8]>,
-        F: Fn(Request) + 'a,
-    {
-        todo!()
-    }
-}
-
-// TODO: finish tree router
-// Lifetime guide:
-// 'a: lifetime of router
-// 'b: lifetime of path as byte sequence
-#[allow(clippy::type_complexity)]
-struct RTreeNode<'a, 'b> {
-    children: Vec<RTreeNode<'a, 'b>>,
-    handler: Option<Box<dyn Fn(Request) + 'a>>,
-    segment: &'b [u8],
-}
-
-pub struct TreeRouter<'a, 'b> {
-    root: RTreeNode<'a, 'b>,
-}
-
-impl<'a, 'b> TreeRouter<'a, 'b> {
-    pub fn from(path_bytes: &'b [u8]) -> Result<Self, RouteError> {
-        let first_char = path_bytes.first();
-        if first_char.is_none() || *first_char.unwrap() != b'/' {
-            return Err(RouteError::MalformedPath);
-        }
-
-        let path_bytes = if *path_bytes.last().unwrap() == b'/' {
-            &path_bytes[..path_bytes.len() - 1]
-        } else {
-            path_bytes
-        };
-
-        todo!()
-    }
+    builder.build()
 }

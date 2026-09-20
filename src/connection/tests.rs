@@ -24,7 +24,7 @@ fn fragmented_request_waits_for_body() {
     bounded(
         "connection::tests::fragmented_request_waits_for_body",
         || {
-            let raw = b"POST / HTTP/1.1\r\nHost: a\r\nContent-Length: 3\r\n\r\nabc";
+            let raw = b"POST /echo HTTP/1.1\r\nHost: a\r\nContent-Length: 3\r\n\r\nabc";
             let (mut client, mut server) = pair();
             let handle = thread::spawn(move || {
                 connection_dispatch(&mut server, &mut ConnectionContext::default())
@@ -151,6 +151,64 @@ fn idle_trickling_and_blocked_writes_expire() {
                 error.kind(),
                 io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut
             ));
+        },
+    );
+}
+
+#[test]
+fn endpoints_return_framed_responses_and_close() {
+    bounded(
+        "connection::tests::endpoints_return_framed_responses_and_close",
+        || {
+            for (method, path, status, body, allow) in [
+                (
+                    "GET",
+                    "/",
+                    200,
+                    include_bytes!("../../hello.html").as_slice(),
+                    None,
+                ),
+                ("GET", "/health?probe=1", 200, b"ok\n".as_slice(), None),
+                ("POST", "/echo", 200, b"abc".as_slice(), None),
+                ("GET", "/missing", 404, b"Not found\n".as_slice(), None),
+                (
+                    "PUT",
+                    "/health",
+                    405,
+                    b"Method not allowed\n".as_slice(),
+                    Some("GET"),
+                ),
+                (
+                    "GET",
+                    "/echo",
+                    405,
+                    b"Method not allowed\n".as_slice(),
+                    Some("POST"),
+                ),
+                ("PATCH", "/", 501, b"Request rejected\n".as_slice(), None),
+            ] {
+                let (mut client, mut server) = pair();
+                let handle = thread::spawn(move || {
+                    connection_dispatch(&mut server, &mut ConnectionContext::default())
+                });
+                write!(
+                    client,
+                    "{method} {path} HTTP/1.1\r\nHost: a\r\nContent-Length: 3\r\n\r\nabc"
+                )
+                .unwrap();
+                let mut bytes = Vec::new();
+                client.read_to_end(&mut bytes).unwrap(); // EOF verifies one-request closure.
+                handle.join().unwrap().unwrap();
+                let end = memchr::memmem::find(&bytes, b"\r\n\r\n").unwrap();
+                let head = std::str::from_utf8(&bytes[..end]).unwrap();
+                assert!(head.starts_with(&format!("HTTP/1.1 {status} ")));
+                assert!(head.contains("\r\nConnection: close"));
+                assert!(head.contains(&format!("\r\nContent-Length: {}", body.len())));
+                assert_eq!(&bytes[end + 4..], body);
+                if let Some(method) = allow {
+                    assert!(head.contains(&format!("\r\nAllow: {method}")));
+                }
+            }
         },
     );
 }
